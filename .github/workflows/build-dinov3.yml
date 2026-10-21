@@ -1,0 +1,33 @@
+name: build-and-push-dinov3
+on:
+  push:
+    branches: [main]
+    paths: ["dinov3/**", ".github/workflows/build-dinov3.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          sudo docker image prune --all --force || true
+          df -h /
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build
+        run: |
+          # Pushed as a tag of the existing public package so RunPod can pull it without credentials.
+          IMG=ghcr.io/${{ github.repository_owner }}/sam31-worker
+          docker build -t $IMG:dinov3 -t $IMG:dinov3-${GITHUB_SHA::12} dinov3
+          docker image inspect $IMG:dinov3 --format 'image size: {{.Size}} bytes'
+      - name: Push
+        run: |
+          IMG=ghcr.io/${{ github.repository_owner }}/sam31-worker
+          docker push $IMG:dinov3-${GITHUB_SHA::12}
+          docker push $IMG:dinov3
