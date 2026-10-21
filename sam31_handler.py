@@ -167,6 +167,10 @@ def segment(image, prompt: str, threshold: float | None, return_masks: bool) -> 
             if return_masks:
                 obj["mask_rle"] = _rle(m)
         objects.append(obj)
+    # SAM 3.1 ignores output_prob_thresh in add_prompt (tested 2026-10-21), so apply the threshold here.
+    # The model's own detection cutoff is 0.5, so thresholds below 0.5 return the same objects as the default.
+    if threshold is not None:
+        objects = [o for o in objects if o["score"] is not None and o["score"] >= float(threshold)]
     return {"image_size": [w, h], "prompt": prompt, "n_objects": len(objects), "objects": objects,
             "timing_ms": {"start_session": round((t1 - t0) * 1000), "prompt": round((t2 - t1) * 1000)},
             "output_keys": sorted(out.keys())}
