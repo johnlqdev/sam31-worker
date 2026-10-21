@@ -2,6 +2,7 @@ name: build-and-push
 on:
   push:
     branches: [main]
+    paths-ignore: ["dinov3/**", ".github/workflows/build-dinov3.yml", ".github/workflows/build.yml", "README.md"]
   workflow_dispatch:
 permissions:
   contents: read
