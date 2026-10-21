@@ -1,10 +1,12 @@
-# sam31-worker
+# Vision workers for RunPod Serverless
 
-RunPod Serverless worker for Meta's **SAM 3.1** (text-prompted segmentation of an image).
+Two independent workers, each built by GitHub Actions and pushed to the public package `ghcr.io/johnlqdev/sam31-worker`:
 
-* Image: `ghcr.io/johnlqdev/sam31-worker:latest`, built by GitHub Actions from `Dockerfile`
-  (base `muhammadshahmirzaman/sam3.1:slim` + RunPod SDK + fixes + `sam31_handler.py`).
-* Weights are **not** in the image (Meta's licence gates them). At cold start the worker downloads
-  `sam3.1_multiplex.pt` through the owner's Supabase lab function (`LAB_URL`, `WORKER_TOKEN` env vars).
-* Job input: `{"image_url": "...", "prompt": "cat", "threshold": 0.5, "return_masks": false}`
-  Output: objects with id, score, box (pixels, xyxy), mask area (and RLE masks on request), timings.
+| Tag | Folder | Model | Workflow |
+|---|---|---|---|
+| `:latest` | repo root | SAM 3.1 text-prompted segmentation (`sam31_handler.py`) | `build.yml` |
+| `:dinov3` | `dinov3/` | DINOv3 image features, default ViT-7B/16 (`dinov3_handler.py`) | `build-dinov3.yml` |
+
+No weights are baked in. Both read their checkpoints from the RunPod network volume (`/runpod-volume/sam3.1/...`,
+`/runpod-volume/dinov3/...`) and fall back to a Dropbox download through the owner's Supabase lab function.
+Job formats are documented at the top of each handler.
