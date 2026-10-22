@@ -176,6 +176,28 @@ def segment(image, prompt: str, threshold: float | None, return_masks: bool) -> 
             "output_keys": sorted(out.keys())}
 
 
+def _gpu_mem_reset() -> None:
+    try:
+        import torch
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _gpu_mem() -> dict:
+    """GPU memory of this process (GB): now, and the peak since the last reset (i.e. during this job)."""
+    try:
+        import torch
+        torch.cuda.synchronize()
+        g = 1e9
+        return {"allocated": round(torch.cuda.memory_allocated() / g, 2), "peak_allocated": round(torch.cuda.max_memory_allocated() / g, 2),
+                "reserved": round(torch.cuda.memory_reserved() / g, 2), "peak_reserved": round(torch.cuda.max_memory_reserved() / g, 2),
+                "device_total": round(torch.cuda.get_device_properties(0).total_memory / g, 1)}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)[:200]}
+
+
 def handler(job):
     global N_JOBS
     from PIL import Image
@@ -194,6 +216,7 @@ def handler(job):
     else:
         return {"error": "give image_url or image_b64"}
     t_img = time.time()
+    _gpu_mem_reset()
     try:
         res = segment(img, str(inp.get("prompt", "object")), inp.get("threshold"), bool(inp.get("return_masks")))
     except Exception:  # noqa: BLE001
@@ -204,7 +227,7 @@ def handler(job):
     N_JOBS += 1
     res.update(job_index_on_worker=N_JOBS, first_job_on_worker=(N_JOBS == 1),
                image_fetch_ms=round((t_img - t0) * 1000), handler_ms=round((time.time() - t0) * 1000),
-               worker=COLD)
+               worker=COLD, gpu_mem_gb=_gpu_mem())
     return res
 
 
