@@ -146,6 +146,28 @@ def features(img, resolution: int, want: list[str], pca: int, fmt: str) -> dict:
     return res
 
 
+def _gpu_mem_reset() -> None:
+    try:
+        import torch
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _gpu_mem() -> dict:
+    """GPU memory of this process (GB): now, and the peak since the last reset (i.e. during this job)."""
+    try:
+        import torch
+        torch.cuda.synchronize()
+        g = 1e9
+        return {"allocated": round(torch.cuda.memory_allocated() / g, 2), "peak_allocated": round(torch.cuda.max_memory_allocated() / g, 2),
+                "reserved": round(torch.cuda.memory_reserved() / g, 2), "peak_reserved": round(torch.cuda.max_memory_reserved() / g, 2),
+                "device_total": round(torch.cuda.get_device_properties(0).total_memory / g, 1)}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)[:200]}
+
+
 def handler(job):
     global N_JOBS
     from PIL import Image
@@ -162,6 +184,7 @@ def handler(job):
     t_img = time.time()
     want = inp.get("return") or ["cls"]
     want = [want] if isinstance(want, str) else list(want)
+    _gpu_mem_reset()
     try:
         res = features(img, int(inp.get("resolution", 512)), want, int(inp.get("patch_pca", 0) or 0),
                        str(inp.get("format", "list")))
@@ -172,7 +195,7 @@ def handler(job):
         return {"error": tb}
     N_JOBS += 1
     res.update(job_index_on_worker=N_JOBS, image_fetch_ms=round((t_img - t0) * 1000),
-               handler_ms=round((time.time() - t0) * 1000), worker=COLD)
+               handler_ms=round((time.time() - t0) * 1000), worker=COLD, gpu_mem_gb=_gpu_mem())
     return res
 
 
